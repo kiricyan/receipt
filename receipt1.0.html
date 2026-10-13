@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>他的购物小票</title>
+<style>
+  :root {
+    --desk: #dde3ee;
+    --panel: #f7f8fb;
+    --paper: #fffef9;
+    --ink: #2c2b2a;
+    --faded: #8d8a85;
+    --marker: #ff5d8f;
+    --marker-soft: #ffe3ec;
+    --line: #c3cad8;
+    --mono: "Courier New", "Noto Sans Mono CJK SC", "PingFang SC", "Microsoft YaHei", ui-monospace, monospace;
+    --sans: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: 12px; }
+  body {
+    margin: 0; background: var(--desk); color: var(--ink);
+    font-family: var(--sans); line-height: 1.6;
+    padding: 20px 14px 60px;
+  }
+  .wrap { max-width: 460px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 4px 0 4px; letter-spacing: .5px; }
+  .sub { margin: 0 0 16px; color: #5d6577; font-size: 14px; }
+
+  .panel {
+    background: var(--panel); border: 1.5px solid var(--line);
+    border-radius: 10px; padding: 14px; margin-bottom: 12px;
+  }
+  details.panel summary { cursor: pointer; font-weight: 600; font-size: 15px; }
+  details.panel[open] summary { margin-bottom: 10px; }
+  label { display: block; font-size: 13px; color: #4a5266; margin: 10px 0 4px; }
+  input[type=text], input[type=password], input[type=number], textarea, select {
+    width: 100%; font: inherit; font-size: 15px; color: var(--ink);
+    background: #fff; border: 1.5px solid var(--line); border-radius: 8px;
+    padding: 9px 11px;
+  }
+  textarea { min-height: 84px; resize: vertical; }
+  input:focus, textarea:focus, select:focus, button:focus-visible, summary:focus-visible, .seg input:focus-visible + span {
+    outline: 2.5px solid var(--marker); outline-offset: 1px; border-color: var(--marker);
+  }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; min-width: 0; }
+  .hint { font-size: 12px; color: #6b7388; margin: 6px 0 0; }
+
+  /* 内置 / 自己的 切换 */
+  .seg { display: flex; border: 1.5px solid var(--ink); border-radius: 8px; overflow: hidden; margin-bottom: 4px; }
+  .seg label { flex: 1; margin: 0; position: relative; cursor: pointer; }
+  .seg input { position: absolute; opacity: 0; inset: 0; }
+  .seg span { display: block; text-align: center; padding: 9px 6px; font-size: 14px; font-weight: 600; color: var(--ink); background: #fff; }
+  .seg input:checked + span { background: var(--ink); color: #fff; }
+
+  .inline { display: flex; gap: 8px; align-items: stretch; }
+  .inline input { flex: 1; min-width: 0; }
+  .small { font-size: 13px; padding: 8px 12px; white-space: nowrap; }
+
+  .btns { display: flex; gap: 10px; margin-top: 14px; }
+  button {
+    font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+    border-radius: 8px; padding: 11px 14px; border: 1.5px solid var(--ink);
+    background: #fff; color: var(--ink);
+  }
+  button.primary { background: var(--ink); color: #fff; flex: 1; }
+  button:disabled { opacity: .5; cursor: wait; }
+  #status { margin: 12px 0 0; font-size: 14px; min-height: 22px; }
+  #status.err { color: #c0264e; }
+  .hint.err { color: #c0264e; }
+
+  .fileBtn { display: inline-block; margin-top: 6px; }
+  .fileBtn input { display: none; }
+  .fileBtn span {
+    display: inline-block; cursor: pointer; font-size: 13px; font-weight: 600;
+    border: 1.5px dashed var(--ink); border-radius: 8px; padding: 7px 12px; background: #fff;
+  }
+  .fileBtn input:focus-visible + span { outline: 2.5px solid var(--marker); outline-offset: 1px; }
+
+  /* ---------- 小票 ---------- */
+  #stage { margin-top: 18px; display: none; }
+  #capture { padding: 18px 14px; background: var(--desk); }
+  #receipt { width: 100%; max-width: 340px; margin: 0 auto; }
+  .edge { height: 8px; background-repeat: repeat-x; background-size: 14px 8px; }
+  .edge.top {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'><polygon points='0,8 7,0 14,8' fill='%23fffef9'/></svg>");
+  }
+  .edge.bot {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'><polygon points='0,0 7,8 14,0' fill='%23fffef9'/></svg>");
+  }
+  .paper {
+    background: var(--paper); padding: 6px 18px 16px;
+    font-family: var(--mono); font-size: 13px; line-height: 1.55; color: var(--ink);
+  }
+  .store { text-align: center; font-size: 18px; font-weight: 700; margin: 10px 0 2px; letter-spacing: 1px; }
+  .addr { text-align: center; color: var(--faded); font-size: 12px; }
+  .dash { border: 0; border-top: 1.5px dashed #b9b5ac; margin: 10px 0; }
+  .meta { display: flex; justify-content: space-between; gap: 8px; color: var(--faded); font-size: 12px; }
+  .cols { display: flex; justify-content: space-between; color: var(--faded); font-size: 12px; }
+
+  .item { margin: 0; }
+  .item-btn {
+    all: unset; box-sizing: border-box; display: block; width: 100%;
+    cursor: pointer; padding: 6px 4px; border-radius: 4px;
+  }
+  .item-btn:hover { background: #f6f1e3; }
+  .item-btn:focus-visible { outline: 2.5px solid var(--marker); }
+  .item-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .item-name { flex: 1; min-width: 0; word-break: break-all; }
+  .item-name .qty { color: var(--faded); }
+  .item-price { white-space: nowrap; }
+  .tap { font-size: 11px; color: var(--marker); }
+  .thought {
+    display: none; margin: 2px 4px 8px; padding: 9px 11px;
+    background: var(--marker-soft); border-left: 3px solid var(--marker);
+    border-radius: 0 6px 6px 0; font-family: var(--sans); font-size: 13px; line-height: 1.6;
+    color: #4a1c2b;
+  }
+  .item.open .thought, #receipt.all-open .thought { display: block; }
+  .item.open .tap::after { content: "收起"; }
+  .item:not(.open) .tap::after { content: "想了什么？"; }
+  #receipt.all-open .tap { display: none; }
+
+  .total { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; margin: 4px 4px; }
+  .pay { display: flex; justify-content: space-between; margin: 0 4px; color: var(--faded); font-size: 12px; }
+  .footer { text-align: center; margin: 12px 0 6px; font-size: 12px; color: var(--faded); white-space: pre-line; }
+  .barcode { display: flex; justify-content: center; align-items: stretch; height: 40px; gap: 0; margin: 10px 0 2px; }
+  .barcode i { display: block; background: var(--ink); }
+  .code { text-align: center; font-size: 11px; letter-spacing: 3px; color: var(--faded); }
+
+  .tools { max-width: 340px; margin: 12px auto 0; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 0 0 10px; color: #3d4559; }
+  .check input { width: 18px; height: 18px; accent-color: var(--marker); }
+  .tools button { width: 100%; }
+
+  /* ---------- 图片预览 ---------- */
+  #modal {
+    position: fixed; inset: 0; background: rgba(30,34,45,.78); z-index: 10;
+    display: none; flex-direction: column; align-items: center;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
+    overflow: auto;
+  }
+  #modal.show { display: flex; }
+  #modal img { max-width: 100%; width: 380px; height: auto; border-radius: 6px; background: #fff; }
+  #modal p { color: #fff; font-size: 14px; margin: 10px 0; text-align: center; }
+  #modal .m-btns { display: flex; gap: 10px; margin-top: 4px; }
+  #modal button { background: #fff; }
+  #modal a.dl {
+    display: inline-block; text-decoration: none; font-weight: 600; font-size: 15px;
+    background: var(--marker); color: #fff; border: 1.5px solid var(--marker);
+    border-radius: 8px; padding: 11px 14px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .thought { animation: pop .18s ease-out; }
+    @keyframes pop { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>他的购物小票</h1>
+  <p class="sub">写下一个人设和一个场景，AI 会替他去买东西，并记下每样东西买的时候在想什么。</p>
+
+  <details class="panel" id="apiBox">
+    <summary>API 设置</summary>
+
+    <div id="modeBox">
+      <div class="seg" role="radiogroup" aria-label="API 来源">
+        <label><input type="radio" name="mode" value="builtin"><span>用内置的</span></label>
+        <label><input type="radio" name="mode" value="own"><span>用自己的</span></label>
+      </div>
+      <p class="hint" id="builtinHint">内置的有每日次数限制，不用填任何东西。</p>
+    </div>
+
+    <div id="ownFields">
+      <label for="api">接口地址（OpenAI 兼容格式）</label>
+      <input type="text" id="api" placeholder="https://api.openai.com/v1" autocomplete="off">
+      <label for="key">API Key</label>
+      <input type="password" id="key" placeholder="sk-..." autocomplete="off">
+      <label for="model">模型名称</label>
+      <div class="inline">
+        <input type="text" id="model" placeholder="gpt-4o-mini" autocomplete="off">
+        <button type="button" class="small" id="fetchModels">拉取模型</button>
+      </div>
+      <select id="modelSel" style="display:none; margin-top:8px" aria-label="选择模型"></select>
+      <p class="hint" id="modelMsg">Key 只会保存在你自己浏览器的本地。地址填到 /v1 即可。</p>
+    </div>
+  </details>
+
+  <div class="panel">
+    <label for="persona" style="margin-top:0">人设</label>
+    <textarea id="persona" placeholder="比如：28岁的程序员，嘴硬心软，嫌麻烦但会偷偷给同事带东西，对自己很抠。"></textarea>
+    <label class="fileBtn">
+      <input type="file" id="file" accept=".txt,.md,.docx">
+      <span>导入文件（txt / md / docx）</span>
+    </label>
+    <p class="hint" id="importMsg">导入的文字会接在人设后面，导入后还能手动修改。</p>
+
+    <label for="idea">场景 / 想法</label>
+    <textarea id="idea" placeholder="比如：加班到凌晨一点，下楼去便利店；今天被老板骂了。"></textarea>
+    <div class="row">
+      <div>
+        <label for="count">商品数量</label>
+        <input type="number" id="count" min="2" max="12" value="6">
+      </div>
+      <div>
+        <label for="cur">货币符号</label>
+        <input type="text" id="cur" value="¥" maxlength="3">
+      </div>
+    </div>
+    <div class="btns">
+      <button class="primary" id="go">生成小票</button>
+      <button id="demo" type="button">看示例</button>
+    </div>
+    <p id="status" role="status"></p>
+  </div>
+
+  <section id="stage" aria-label="购物小票">
+    <div id="capture">
+      <div id="receipt"></div>
+    </div>
+    <div class="tools">
+      <label class="check"><input type="checkbox" id="incl" checked> 保存的图片里展开所有心声</label>
+      <button id="save" type="button">保存为图片</button>
+    </div>
+  </section>
+</div>
+
+<div id="modal" role="dialog" aria-label="图片预览">
+  <p id="mTip">长按图片可保存到相册</p>
+  <img id="mImg" alt="购物小票图片">
+  <div class="m-btns">
+    <a class="dl" id="mDl" download="receipt.png">下载图片</a>
+    <button type="button" id="mClose">关闭</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script>
+(function () {
+  /* =========================================================
+     把你部署好的中转地址填在下面（Cloudflare Worker 的网址）。
+     留空 = 不提供“内置”选项，只能用户自己填 Key。
+     例：var RELAY_URL = "https://receipt-relay.你的名字.workers.dev";
+     ========================================================= */
+  var RELAY_URL = "https://receipt.x360378.workers.dev";
+
+  var MAX_PERSONA = 8000;
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- 本地保存设置 ---------- */
+  function lsGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  ["api", "key", "model", "persona", "idea"].forEach(function (id) {
+    $(id).value = lsGet("rc_" + id);
+    $(id).addEventListener("input", function () { lsSet("rc_" + id, $(id).value); });
+  });
+
+  function setStatus(msg, isErr) {
+    var s = $("status"); s.textContent = msg || ""; s.className = isErr ? "err" : "";
+  }
+
+  /* ---------- 内置 / 自己的 切换 ---------- */
+  var hasRelay = !!RELAY_URL;
+  function currentMode() {
+    if (!hasRelay) return "own";
+    var r = document.querySelector('input[name="mode"]:checked');
+    return r ? r.value : "builtin";
+  }
+  function applyMode() {
+    var m = currentMode();
+    $("ownFields").style.display = m === "own" ? "block" : "none";
+    $("builtinHint").style.display = m === "builtin" ? "block" : "none";
+  }
+  if (!hasRelay) {
+    $("modeBox").style.display = "none";
+    if (!$("key").value) $("apiBox").open = true;
+  } else {
+    var saved = lsGet("rc_mode") === "own" ? "own" : "builtin";
+    document.querySelector('input[name="mode"][value="' + saved + '"]').checked = true;
+    document.querySelectorAll('input[name="mode"]').forEach(function (r) {
+      r.addEventListener("change", function () { lsSet("rc_mode", currentMode()); applyMode(); });
+    });
+  }
+  applyMode();
+
+  /* ---------- 拉取模型 ---------- */
+  function baseUrl() {
+    return $("api").value.trim().replace(/\/+$/, "").replace(/\/chat\/completions$/, "");
+  }
+  function modelMsg(text, isErr) {
+    var m = $("modelMsg"); m.textContent = text; m.className = "hint" + (isErr ? " err" : "");
+  }
+  async function fetchModels() {
+    var base = baseUrl(), key = $("key").value.trim();
+    if (!base || !key) { modelMsg("先填好接口地址和 Key，再拉取模型。", true); return; }
+    var btn = $("fetchModels");
+    btn.disabled = true; btn.textContent = "拉取中…";
+    try {
+      var res = await fetch(base + "/models", { headers: { "Authorization": "Bearer " + key } });
+      if (!res.ok) throw new Error("接口返回 " + res.status);
+      var data = await res.json();
+      var list = Array.isArray(data) ? data : (data.data || data.models || []);
+      var ids = list.map(function (m) { return typeof m === "string" ? m : (m.id || m.name); })
+                    .filter(Boolean).sort();
+      if (!ids.length) throw new Error("没有拉到任何模型");
+      var sel = $("modelSel");
+      sel.innerHTML = "";
+      var ph = document.createElement("option");
+      ph.value = ""; ph.textContent = "共 " + ids.length + " 个模型，点这里选择";
+      sel.appendChild(ph);
+      ids.forEach(function (id) {
+        var o = document.createElement("option");
+        o.value = id; o.textContent = id; sel.appendChild(o);
+      });
+      sel.style.display = "block";
+      modelMsg("拉取成功，选一个就会填进上面的模型框。", false);
+    } catch (err) {
+      var msg = err && err.message ? err.message : String(err);
+      if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+        msg = "拉取失败：请检查地址、网络，或该接口是否允许浏览器直接调用（跨域）。也可以手动填模型名。";
+      } else {
+        msg = "拉取失败：" + msg + "。也可以手动填模型名。";
+      }
+      modelMsg(msg, true);
+    } finally {
+      btn.disabled = false; btn.textContent = "拉取模型";
+    }
+  }
+  $("fetchModels").addEventListener("click", fetchModels);
+  $("modelSel").addEventListener("change", function () {
+    if (this.value) { $("model").value = this.value; lsSet("rc_model", this.value); }
+  });
+
+  /* ---------- 导入人设文件 ---------- */
+  $("file").addEventListener("change", async function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var out = $("importMsg");
+    try {
+      var name = f.name.toLowerCase(), text = "";
+      if (/\.(txt|md|markdown)$/.test(name)) {
+        text = await f.text();
+      } else if (name.endsWith(".docx")) {
+        if (typeof mammoth === "undefined") throw new Error("docx 解析库没有加载成功，请检查网络后刷新");
+        var buf = await f.arrayBuffer();
+        var r = await mammoth.extractRawText({ arrayBuffer: buf });
+        text = r.value;
+      } else if (name.endsWith(".doc")) {
+        throw new Error(".doc 是旧格式，请先在 Word 里另存为 .docx");
+      } else {
+        throw new Error("暂时只支持 txt、md、docx");
+      }
+      text = text.replace(/\r\n/g, "\n").trim();
+      if (!text) throw new Error("文件里没有读到文字");
+      var cut = "";
+      if (text.length > MAX_PERSONA) { text = text.slice(0, MAX_PERSONA); cut = "（内容太长，只取了前 " + MAX_PERSONA + " 字）"; }
+      var ta = $("persona");
+      ta.value = ta.value.trim() ? ta.value.trim() + "\n\n" + text : text;
+      lsSet("rc_persona", ta.value);
+      out.textContent = "已导入「" + f.name + "」" + cut;
+      out.className = "hint";
+    } catch (err) {
+      out.textContent = "导入失败：" + (err && err.message ? err.message : err);
+      out.className = "hint err";
+    } finally {
+      e.target.value = "";
+    }
+  });
+
+  /* ---------- 示例 ---------- */
+  var DEMO = {
+    store: "深夜便利 24H",
+    address: "科技路 88 号 楼下",
+    time: "01:12",
+    cashier: "收银员 07",
+    payment: "手机支付",
+    footer: "谢谢惠顾\n早点睡，真的",
+    items: [
+      { name: "无糖冰美式", qty: 1, price: 9.9, thought: "第三杯了。明知道喝了更睡不着，但不喝的话代码根本看不进去。就这杯，最后一杯。" },
+      { name: "红豆面包", qty: 1, price: 6.5, thought: "晚饭好像没吃。算了，补一个。顺便看了眼保质期，今天的，打折，赚了。" },
+      { name: "暖宝宝", qty: 2, price: 3, thought: "给隔壁工位的小林买的，她老说空调太冷。我才不是特意的，是刚好看到两片装的更划算。" },
+      { name: "润喉糖", qty: 1, price: 8, thought: "下午被骂得嗓子都哑了。本来想买最便宜的，结果手伸向了贵的那个。今天对自己好一点。" },
+      { name: "草莓牛奶", qty: 1, price: 5.5, thought: "不是我要喝。……好吧是我要喝。小时候受委屈了妈妈就会给我买这个。" }
+    ]
+  };
+
+  /* ---------- 渲染小票 ---------- */
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function money(n, cur) { return cur + (Math.round(n * 100) / 100).toFixed(2); }
+
+  function renderReceipt(d, cur) {
+    var r = $("receipt");
+    r.innerHTML = "";
+    r.className = "";
+    r.appendChild(el("div", "edge top"));
+    var paper = el("div", "paper");
+
+    paper.appendChild(el("div", "store", d.store || "无名小店"));
+    if (d.address) paper.appendChild(el("div", "addr", d.address));
+    paper.appendChild(el("hr", "dash"));
+
+    var meta = el("div", "meta");
+    meta.appendChild(el("span", "", d.time || ""));
+    meta.appendChild(el("span", "", d.cashier || ""));
+    paper.appendChild(meta);
+    paper.appendChild(el("hr", "dash"));
+
+    var cols = el("div", "cols");
+    cols.appendChild(el("span", "", "商品 · 点一下看心声"));
+    cols.appendChild(el("span", "", "金额"));
+    paper.appendChild(cols);
+
+    var total = 0, count = 0;
+    (d.items || []).forEach(function (it) {
+      var qty = Math.max(1, parseInt(it.qty, 10) || 1);
+      var price = parseFloat(it.price) || 0;
+      var sub = price * qty;
+      total += sub; count += qty;
+
+      var wrap = el("div", "item");
+      var btn = el("button", "item-btn");
+      btn.type = "button";
+      btn.setAttribute("aria-expanded", "false");
+
+      var top = el("div", "item-top");
+      var name = el("span", "item-name", it.name || "不明物品");
+      if (qty > 1) name.appendChild(el("span", "qty", "  x" + qty));
+      top.appendChild(name);
+      top.appendChild(el("span", "item-price", money(sub, cur)));
+      btn.appendChild(top);
+      btn.appendChild(el("span", "tap"));
+
+      var th = el("div", "thought", "💭 " + (it.thought || "……（什么也没想，顺手拿的）"));
+      btn.addEventListener("click", function () {
+        var open = wrap.classList.toggle("open");
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+      wrap.appendChild(btn);
+      wrap.appendChild(th);
+      paper.appendChild(wrap);
+    });
+
+    paper.appendChild(el("hr", "dash"));
+    var tt = el("div", "total");
+    tt.appendChild(el("span", "", "合计 (" + count + " 件)"));
+    tt.appendChild(el("span", "", money(total, cur)));
+    paper.appendChild(tt);
+    var pay = el("div", "pay");
+    pay.appendChild(el("span", "", "支付方式"));
+    pay.appendChild(el("span", "", d.payment || "现金"));
+    paper.appendChild(pay);
+    paper.appendChild(el("hr", "dash"));
+
+    paper.appendChild(el("div", "footer", d.footer || "谢谢惠顾\n欢迎再次光临"));
+
+    var bc = el("div", "barcode");
+    var seed = 7;
+    for (var i = 0; i < 42; i++) {
+      seed = (seed * 9301 + 49297) % 233280;
+      var w = 1 + Math.floor((seed / 233280) * 3);
+      var bar = el("i");
+      bar.style.width = w + "px";
+      bar.style.marginRight = (1 + (i % 3 === 0 ? 1 : 0)) + "px";
+      bc.appendChild(bar);
+    }
+    paper.appendChild(bc);
+    var no = "";
+    for (var j = 0; j < 12; j++) no += Math.floor(Math.random() * 10);
+    paper.appendChild(el("div", "code", no));
+
+    r.appendChild(paper);
+    r.appendChild(el("div", "edge bot"));
+    $("stage").style.display = "block";
+  }
+
+  /* ---------- 调用 API ---------- */
+  function buildPrompt(persona, idea, count, cur) {
+    var sys =
+      "你是一个“购物小票生成器”。根据用户给出的人设和场景，设想这个角色此刻去买东西，生成一张真实感很强的购物小票。\n" +
+      "要求：\n" +
+      "1. 商品要贴合人设与场景，名称像真实小票上的商品名，价格合理；有一两件出乎意料但符合人设的东西更好。\n" +
+      "2. 每件商品都有 thought：角色本人买它时的内心独白，第一人称，口语化，40~100字，要能看出性格、情绪和当下处境，不要写成商品介绍。\n" +
+      "3. 店名、地址、收银员、时间、结尾语要符合场景，结尾语可以带一点角色色彩。\n" +
+      "4. 只输出一个 JSON 对象，不要任何解释，不要 markdown 代码块。格式：\n" +
+      '{"store":"店名","address":"地址","time":"日期时间","cashier":"收银员","payment":"支付方式",' +
+      '"items":[{"name":"商品名","qty":1,"price":9.9,"thought":"内心独白"}],"footer":"结尾语，可用\\n换行"}\n' +
+      "price 是单价（数字），货币符号为 " + cur + "，不要在 price 里带符号。";
+    var usr = "人设：" + persona + "\n场景/想法：" + (idea || "（没有特别说明，请自由发挥）") +
+      "\n商品数量：约 " + count + " 件";
+    return [{ role: "system", content: sys }, { role: "user", content: usr }];
+  }
+
+  function parseJSON(text) {
+    var s = text.indexOf("{"), e = text.lastIndexOf("}");
+    if (s < 0 || e <= s) throw new Error("AI 返回的内容里没有找到 JSON");
+    return JSON.parse(text.slice(s, e + 1));
+  }
+
+  async function generate() {
+    var persona = $("persona").value.trim();
+    var idea = $("idea").value.trim();
+    var mode = currentMode();
+    var cur = $("cur").value.trim() || "¥";
+    var count = Math.min(12, Math.max(2, parseInt($("count").value, 10) || 6));
+
+    if (!persona) { setStatus("先写一下人设吧。", true); $("persona").focus(); return; }
+
+    var url, headers = { "Content-Type": "application/json" }, payload;
+    var messages = buildPrompt(persona, idea, count, cur);
+
+    if (mode === "builtin") {
+      url = RELAY_URL;
+      payload = { messages: messages, temperature: 0.95 };
+    } else {
+      var base = baseUrl(), key = $("key").value.trim(), model = $("model").value.trim();
+      if (!base || !key || !model) {
+        setStatus("请先填好接口地址、Key 和模型名称。", true);
+        $("apiBox").open = true; return;
+      }
+      url = base + "/chat/completions";
+      headers["Authorization"] = "Bearer " + key;
+      payload = { model: model, temperature: 0.95, messages: messages };
+    }
+
+    $("go").disabled = true;
+    setStatus("正在替 TA 去买东西……");
+    try {
+      var res = await fetch(url, { method: "POST", headers: headers, body: JSON.stringify(payload) });
+      if (!res.ok) {
+        if (mode === "builtin" && res.status === 429) {
+          throw new Error("今天的内置次数用完了。明天再来，或者切换到「用自己的」。");
+        }
+        var t = await res.text();
+        throw new Error("接口返回 " + res.status + "：" + t.slice(0, 160));
+      }
+      var data = await res.json();
+      var content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      if (!content) throw new Error("接口返回的格式不是 OpenAI 兼容格式");
+      var receipt = parseJSON(content);
+      if (!receipt.items || !receipt.items.length) throw new Error("小票里没有商品，请重试");
+      renderReceipt(receipt, cur);
+      setStatus("小票出好了，点一下商品看 TA 当时在想什么。");
+      $("stage").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (err) {
+      var msg = err && err.message ? err.message : String(err);
+      if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+        msg = mode === "builtin"
+          ? "连不上内置服务，请检查网络，或切换到「用自己的」。"
+          : "请求没发出去：请检查地址是否正确、网络是否通，或该接口是否允许浏览器直接调用（跨域）。";
+      }
+      setStatus(msg, true);
+    } finally {
+      $("go").disabled = false;
+    }
+  }
+
+  /* ---------- 保存图片 ---------- */
+  async function saveImage() {
+    if (typeof html2canvas === "undefined") {
+      setStatus("图片库没有加载成功，请检查网络后刷新页面。", true); return;
+    }
+    var r = $("receipt");
+    var btn = $("save");
+    btn.disabled = true; btn.textContent = "生成中……";
+    if ($("incl").checked) r.classList.add("all-open");
+    try {
+      var canvas = await html2canvas($("capture"), {
+        scale: Math.max(2, window.devicePixelRatio || 2),
+        backgroundColor: "#dde3ee",
+        useCORS: true
+      });
+      var url = canvas.toDataURL("image/png");
+      $("mImg").src = url;
+      $("mDl").href = url;
+      $("modal").classList.add("show");
+    } catch (e) {
+      setStatus("保存图片失败：" + (e && e.message ? e.message : e), true);
+    } finally {
+      r.classList.remove("all-open");
+      btn.disabled = false; btn.textContent = "保存为图片";
+    }
+  }
+
+  $("go").addEventListener("click", generate);
+  $("demo").addEventListener("click", function () {
+    renderReceipt(DEMO, $("cur").value.trim() || "¥");
+    setStatus("这是示例小票，没有调用 API。");
+    $("stage").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("save").addEventListener("click", saveImage);
+  $("mClose").addEventListener("click", function () { $("modal").classList.remove("show"); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") $("modal").classList.remove("show");
+  });
+})();
+</script>
+</body>
+</html>
